@@ -1,0 +1,111 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Yuan C"
+date: "May 19, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).<br>
+
+## Description for the Steps
+
+<br>
+We need to build a model to predict "classe" variable, which is a factor variable with 5 levels. We have a large size of training dataset (19622) and over 150 variable candidates. It allows us to use the cross-validation and pick the model with the highest accuracy. Considering the large size of candidates, we will drop all features with missing values and features which are irrelevant. All other features will be considered as relevant features. We will test both decision tree and random forest models and pick the best models by prediction accuracy. Both models are known for their ability to perform well for feature selection. 
+
+In order to perform cross validation for the model selection, we will break the traing set into sub-training set and sub-testing set with 75% and 25% of the total training set.. We will use both model to fit the sub-training set and test on the sub-testing set and pick the model with the bigger accuracy. 
+
+The define our accuracy as the quotation between the correctly predicted "classe" variable in the sub-testing dataset and the total sample in the sub-testing dataset. Then we expect the real testing dataset to have the same accuracy. Hence, we define the expected out of sample error to be 
+
+                      1 - (correctly predicted classe in testing set)/(total size in testing set)
+<br>                      
+
+
+## R Code and Output
+
+
+<br>
+
+**Loading data and delete missing values**
+<br>
+```{r}
+
+#set seed in order to reproduce the result
+set.seed(888)
+
+#loading training and testing datasets and set all missing values to NA
+training_data = read.csv("pml-training.csv",na.strings = c("NA","#DIV/0!",""))
+testing_data = read.csv("pml-testing.csv",na.strings = c("NA","#DIV/0!",""))
+
+#delete colums with missing values and irrelevant to the prediction variable
+training_data = training_data[,colSums(is.na(training_data))==0]
+testing_data = testing_data[,colSums(is.na(testing_data))==0]
+training_data = training_data[,-c(1:7)]
+testing_data = testing_data[,-c(1:7)]
+
+```
+
+**Partition the training data into sub-training and sub-testing data set in order to do the cross validation**
+<br>
+In order to perform cross validation for the model selectio, we will break the traing set into sub-training set and sub-testing set with 75% and 25% of the total training data set.
+<br>
+```{r}
+#load the rpart library
+library(caret)
+
+#divide the training data into sub_training and sub_testing in order to do the cross validation
+sub_data_partition <- createDataPartition(y=training_data$classe, p=0.75, list=FALSE)
+sub_training <- training_data[sub_data_partition,]
+sub_testing <- training_data[-sub_data_partition,]
+```
+<br>
+**Next we will test two methods, decision tree and random forest, on the sub_training and sub_testing data in order to make decision.**
+<br>
+The first prediction model is Decision Tree:
+```{r}
+library(rpart)
+
+#model fitting
+model_dt <- rpart(classe ~ ., data = sub_training, method = "class")
+
+#predicting on the sub_testing data
+pred_dt <- predict(model_dt, sub_testing, type = "class")
+
+#calculate a cross-tabulation of observed and predicted data with associated statistics on sub_testing data set
+confusionMatrix(pred_dt, sub_testing$classe)
+```
+<br>
+**We conclude the accuracy in this model is 0.739 with confidence interval (0.7318, 0.7565)**
+<br>
+The second prediction model is Random Forest
+```{r}
+library(randomForest)
+
+#model fitting
+model_rf <- randomForest(classe ~ .,data = sub_training, method = "class")
+
+#predicting
+pred_rf <- predict(model_rf, sub_testing, type = "class")
+
+#calculate a cross-tabulation of observed and predicted data with associated statistics on sub_testing data set
+confusionMatrix(pred_rf, sub_testing$classe)
+```
+<br>
+**We conclude the accuracy in this model is 0.9961 with confidence interval (0.994, 0.9977)**
+<br>
+Hence, we choose the Random Forest as our final model as it's accuracy 99.61% is much better than the Decision Tree 73.9%. The expected out of sample error should be just 1-99.61% = 0.39%.
+<br>
+**Finally we make prediction on our 20 testing dataset using the calibrated Random Forest model**
+<br>
+```{r}
+#predict on the original testing dataset
+pred_testing <- predict(model_rf, testing_data, type = "class")
+
+#print out the predictions for the manner in which they do the exercise
+pred_testing
+```
